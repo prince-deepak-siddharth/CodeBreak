@@ -44,7 +44,16 @@ export default function InterestsPage() {
 
 		} catch (err) {
 			console.error('Analysis failed:', err);
-			setError('Failed to analyze profiles. Please try again.');
+			// Fallback if AI fails
+			const fallbackInterests = ['General Development', 'Open Source'];
+			setCategories([
+				{
+					label: 'General Topics',
+					items: fallbackInterests
+				}
+			]);
+			setSelectedInterests(fallbackInterests);
+			setError('AI analysis failed. We selected some general topics for you.');
 		} finally {
 			setIsAnalyzing(false);
 		}
