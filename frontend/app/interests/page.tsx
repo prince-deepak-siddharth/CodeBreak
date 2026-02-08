@@ -3,38 +3,52 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Coffee, ArrowRight, Sparkles } from 'lucide-react';
-
-const INTEREST_CATEGORIES = [
-	{
-		label: 'Languages',
-		items: ['JavaScript', 'TypeScript', 'Python', 'Go', 'Rust', 'Java', 'C++'],
-	},
-	{
-		label: 'Frontend',
-		items: ['React', 'Next.js', 'Vue.js', 'Angular', 'Flutter', 'React Native'],
-	},
-	{
-		label: 'Backend & Infra',
-		items: ['Node.js', 'DevOps', 'AWS', 'Docker', 'Kubernetes', 'Microservices'],
-	},
-	{
-		label: 'Data & AI',
-		items: ['Machine Learning', 'AI', 'Data Science'],
-	},
-	{
-		label: 'Databases',
-		items: ['PostgreSQL', 'MongoDB', 'Redis', 'GraphQL', 'REST APIs'],
-	},
-	{
-		label: 'General',
-		items: ['System Design', 'Open Source', 'Startups', 'Career Advice', 'Side Projects', 'Full Stack', 'Mobile Dev'],
-	},
-];
+import axios from 'axios';
 
 export default function InterestsPage() {
 	const router = useRouter();
 	const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+	const [categories, setCategories] = useState<{ label: string; items: string[] }[]>([]);
 	const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+	const [githubUrl, setGithubUrl] = useState('');
+	const [isAnalyzing, setIsAnalyzing] = useState(false);
+	const [error, setError] = useState('');
+
+	const handleAnalyze = async () => {
+		if (!githubUrl) return;
+
+		setIsAnalyzing(true);
+		setError('');
+
+		// Reset categories and selection
+		setCategories([]);
+		setSelectedInterests([]);
+
+		try {
+			const response = await axios.post('http://localhost:3002/api/suggest-interests', {
+				githubUrl
+			});
+
+			const suggestions = response.data.interests;
+
+			// Set categories with AI results
+			setCategories([
+				{
+					label: 'AI Recommendations',
+					items: suggestions
+				}
+			]);
+
+			// Select them all by default
+			setSelectedInterests(suggestions);
+
+		} catch (err) {
+			console.error('Analysis failed:', err);
+			setError('Failed to analyze profiles. Please try again.');
+		} finally {
+			setIsAnalyzing(false);
+		}
+	};
 
 	useEffect(() => {
 		const link = document.createElement('link');
@@ -120,9 +134,50 @@ export default function InterestsPage() {
 					</p>
 				</div>
 
+				{/* Auto-fill Section */}
+				<div className="mb-12 glass p-6 rounded-2xl border border-white/40 animate-fade-in-up delay-100">
+					<div className="flex items-center gap-2 mb-4">
+						<Sparkles size={16} className="text-purple-500" />
+						<h3 className="font-semibold text-slate-700">Auto-fill with AI</h3>
+					</div>
+					<div className="grid md:grid-cols-2 gap-4 mb-4">
+						<input
+							type="text"
+							placeholder="GitHub Profile URL"
+							value={githubUrl}
+							onChange={(e) => setGithubUrl(e.target.value)}
+							className="bg-white/50 border border-white/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-200"
+						/>
+					</div>
+					<button
+						onClick={handleAnalyze}
+						disabled={isAnalyzing || !githubUrl}
+						className={`w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2
+							${isAnalyzing || !githubUrl
+								? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+								: 'bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:shadow-lg hover:scale-[1.01]'
+							}`}
+					>
+						{isAnalyzing ? (
+							<>
+								<span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+								Analyzing Profiles...
+							</>
+						) : (
+							<>
+								<Sparkles size={16} />
+								Generate Suggestions
+							</>
+						)}
+					</button>
+					{error && (
+						<p className="text-red-500 text-xs mt-2 text-center">{error}</p>
+					)}
+				</div>
+
 				{/* Interest categories */}
 				<div className="space-y-8 animate-fade-in-up delay-200">
-					{INTEREST_CATEGORIES.map((category) => (
+					{categories.map((category) => (
 						<div key={category.label}>
 							<h3 className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
 								{category.label}

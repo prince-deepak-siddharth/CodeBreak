@@ -14,6 +14,126 @@ const io = new Server(server, {
 });
 
 app.use(cors());
+app.use(express.json());
+
+import dotenv from 'dotenv';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+dotenv.config();
+
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+// Helper function to fetch GitHub profile
+async function fetchGitHubProfile(url: string): Promise<string> {
+    try {
+        const username = url.split('/').pop();
+        if (!username) return '';
+
+        const apiUrl = `https://api.github.com/users/${username}`;
+        const reposUrl = `https://api.github.com/users/${username}/repos?sort=updated&per_page=5`;
+
+        const [profileRes, reposRes] = await Promise.all([
+            axios.get(apiUrl),
+            axios.get(reposUrl)
+        ]);
+
+        const profile = profileRes.data;
+        const repos = reposRes.data;
+
+        let data = `GitHub Profile: ${profile.name || username}\n`;
+        data += `Bio: ${profile.bio || 'No bio'}\n`;
+        data += `Top Repositories:\n`;
+        repos.forEach((repo: any) => {
+            data += `- ${repo.name}: ${repo.description || 'No description'} (Language: ${repo.language})\n`;
+        });
+
+        return data;
+    } catch (error) {
+        console.error('Error fetching GitHub profile:', error);
+        return '';
+    }
+}
+
+// Helper function to fetch LinkedIn profile (Best Effort Scraper)
+async function fetchLinkedInProfile(url: string): Promise<string> {
+    try {
+        // LinkedIn scraping is difficult without an API. 
+        // We will try to fetch the public page and extract meta tags/basic info.
+        // For a hackathon/demo, this might be limited.
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        });
+
+        const $ = cheerio.load(response.data);
+        const name = $('meta[property="og:title"]').attr('content') || '';
+        const description = $('meta[property="og:description"]').attr('content') || '';
+
+        return `LinkedIn Profile: ${name}\nDescription: ${description}\n`;
+    } catch (error) {
+        console.error('Error fetching LinkedIn profile:', error);
+        return '';
+    }
+}
+
+// Helper function to generate interests using Gemini
+async function generateInterests(profileData: string): Promise<string[]> {
+    try {
+        // Use gemini-1.5-flash for better performance and availability
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+        const prompt = `
+            Analyze the following developer profile data and suggest 5-10 technical interests or topics they would be interested in discussing.
+            Return ONLY a comma-separated list of interests. Do not include any other text.
+            
+            Profile Data:
+            ${profileData}
+        `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        console.log("--- AI Raw Response ---");
+        console.log(text);
+        console.log("-----------------------");
+
+        return text.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    } catch (error) {
+        console.error('Error generating interests:', error);
+        return [];
+    }
+}
+
+// API Endpoint to suggest interests
+app.post('/api/suggest-interests', async (req, res) => {
+    try {
+        const { githubUrl } = req.body;
+        let profileData = '';
+
+        if (githubUrl) {
+            profileData += await fetchGitHubProfile(githubUrl);
+        }
+
+        if (!profileData.trim()) {
+            res.status(400).json({ error: 'Could not fetch data from provided URL' });
+            return;
+        }
+
+        console.log("--- Scraped Profile Data ---");
+        console.log(profileData);
+        console.log("----------------------------");
+
+        const interests = await generateInterests(profileData);
+        res.json({ interests });
+    } catch (error) {
+        console.error('API Error:', error);
+        res.status(500).json({ error: 'Failed to generate suggestions' });
+    }
+});
 
 // User waiting with their interests
 interface WaitingUser {
