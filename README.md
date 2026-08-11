@@ -1,4 +1,4 @@
-# ☕ CodeBreak
+# ☕ DevBrew
 
 > **Coffee chats for developers.** Get matched 1:1 with another dev who shares your interests. 15 minutes of real conversation. Then back to work.
 
@@ -42,7 +42,7 @@
 ## 📁 Project Structure
 
 ```
-CodeBreak/
+DevBrew/
 ├── backend/
 │   ├── src/
 │   │   └── index.ts        # WebRTC signaling server
